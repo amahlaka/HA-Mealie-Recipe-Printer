@@ -1,0 +1,24 @@
+print_recipe:
+  fields:
+    config_entry_id:
+      selector:
+        config_entry:
+          integration: mealie_recipe_printer
+    recipe:
+      example: Pancakes
+      selector:
+        text:
+    ingredients:
+      default: true
+      selector:
+        boolean:
+    steps:
+      default: true
+      selector:
+        boolean:
+    size:
+      default: normal
+      selector:
+        select:
+          options: [small, normal, large]
+          translation_key: size

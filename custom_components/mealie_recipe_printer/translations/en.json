@@ -1,0 +1,72 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Mealie recipe printer",
+        "description": "Prints recipes from this Mealie server on the LX-D02 receipt printer.",
+        "data": {
+          "mealie_entry_id": "Mealie server"
+        }
+      }
+    },
+    "abort": {
+      "no_mealie": "Set up the Mealie integration first.",
+      "already_configured": "This Mealie server already has a recipe printer."
+    }
+  },
+  "entity": {
+    "select": {
+      "recipe": {
+        "name": "Recipe"
+      }
+    },
+    "button": {
+      "print_recipe": {
+        "name": "Print recipe"
+      },
+      "print_shopping_list": {
+        "name": "Print shopping list"
+      },
+      "refresh_recipes": {
+        "name": "Refresh recipe list"
+      }
+    }
+  },
+  "selector": {
+    "size": {
+      "options": {
+        "small": "Small",
+        "normal": "Normal",
+        "large": "Large"
+      }
+    }
+  },
+  "services": {
+    "print_recipe": {
+      "name": "Print recipe",
+      "description": "Prints a Mealie recipe's ingredients as a checklist and its steps.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Recipe printer",
+          "description": "Needed only when several Mealie servers have a recipe printer."
+        },
+        "recipe": {
+          "name": "Recipe",
+          "description": "The recipe's name. Defaults to the one chosen in the Recipe dropdown."
+        },
+        "ingredients": {
+          "name": "Ingredients",
+          "description": "Print the ingredient checklist."
+        },
+        "steps": {
+          "name": "Steps",
+          "description": "Print the numbered steps; off gives a shopping list."
+        },
+        "size": {
+          "name": "Text size",
+          "description": "Smaller text gives a shorter receipt."
+        }
+      }
+    }
+  }
+}

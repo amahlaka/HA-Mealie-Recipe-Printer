@@ -1,0 +1,13 @@
+{
+  "domain": "mealie_recipe_printer",
+  "name": "Mealie Recipe Printer",
+  "after_dependencies": ["mealie"],
+  "codeowners": ["@amahlaka"],
+  "config_flow": true,
+  "documentation": "https://github.com/amahlaka/HA-Mealie-Recipe-Printer",
+  "integration_type": "service",
+  "iot_class": "calculated",
+  "issue_tracker": "https://github.com/amahlaka/HA-Mealie-Recipe-Printer/issues",
+  "requirements": [],
+  "version": "1.0.0"
+}
