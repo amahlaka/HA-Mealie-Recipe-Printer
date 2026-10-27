@@ -1,0 +1,157 @@
+# Print Mealie recipes on the LX-D02 receipt printer.
+#
+# A Home Assistant package: a recipe dropdown, a script that fills it from
+# Mealie, an automation that keeps it current, and a script that prints the
+# chosen recipe's ingredients (as a checklist) and steps.
+#
+# Needs the Mealie integration and the lxd02 integration (the HA-LXD02
+# project). To install, enable packages in configuration.yaml:
+#
+#   homeassistant:
+#     packages: !include_dir_named packages
+#
+# then copy this file to /config/packages/mealie.yaml and restart. Run
+# "Refresh Mealie recipe list" once (or wait for the hourly refresh), then
+# "Print Mealie recipe".
+#
+# With several Mealie servers set up, the first one is used; replace the
+# mealie_entry template with your config entry ID to pick another.
+
+input_select:
+  mealie_recipe:
+    name: Mealie recipe
+    icon: mdi:chef-hat
+    options:
+      - "—"
+
+script:
+  mealie_refresh_recipes:
+    alias: Refresh Mealie recipe list
+    description: Loads the recipe names from Mealie into the Mealie recipe dropdown.
+    icon: mdi:refresh
+    mode: single
+    sequence:
+      - action: mealie.get_recipes
+        data:
+          config_entry_id: "{{ config_entry_id(integration_entities('mealie') | first) }}"
+          result_limit: 100
+        response_variable: result
+      - action: input_select.set_options
+        target:
+          entity_id: input_select.mealie_recipe
+        data:
+          # "items" is also a dict method in templates, so use ['items'].
+          options: >
+            {% set names = result.recipes['items'] | map(attribute='name') | unique | sort | list %}
+            {{ names if names else ['—'] }}
+
+  print_mealie_recipe:
+    alias: Print Mealie recipe
+    description: Prints a Mealie recipe's ingredients as a checklist and its steps.
+    icon: mdi:chef-hat
+    mode: queued
+    fields:
+      recipe:
+        name: Recipe
+        description: Defaults to the one chosen in the Mealie recipe dropdown.
+        selector:
+          state:
+            entity_id: input_select.mealie_recipe
+            hide_states: ["—"]
+      ingredients:
+        name: Ingredients
+        default: true
+        selector:
+          boolean:
+      steps:
+        name: Steps
+        default: true
+        selector:
+          boolean:
+      size:
+        name: Text size
+        default: normal
+        selector:
+          select:
+            options: [small, normal, large]
+    sequence:
+      - variables:
+          mealie_entry: "{{ config_entry_id(integration_entities('mealie') | first) }}"
+          recipe_name: "{{ recipe | default(states('input_select.mealie_recipe'), true) }}"
+          show_ingredients: "{{ ingredients | default(true) }}"
+          show_steps: "{{ steps | default(true) }}"
+      - action: mealie.get_recipes
+        data:
+          config_entry_id: "{{ mealie_entry }}"
+          search_terms: "{{ recipe_name }}"
+          result_limit: 20
+        response_variable: found
+      - variables:
+          # Keep only the ID: whole recipes contain dates, which don't survive
+          # being stored in a variable.
+          recipe_id: >
+            {{ found.recipes['items'] | selectattr('name', 'eq', recipe_name)
+               | map(attribute='recipe_id') | first | default('') }}
+      - if: "{{ not recipe_id }}"
+        then:
+          - stop: Recipe not found in Mealie; refresh the recipe list and pick it again
+            error: true
+      - action: mealie.get_recipe
+        data:
+          config_entry_id: "{{ mealie_entry }}"
+          recipe_id: "{{ recipe_id }}"
+        response_variable: result
+      - variables:
+          # The recipe as Markdown, which lxd02.print formats.
+          receipt: |-
+            {%- set rc = result.recipe -%}
+            {%- set servings = ('%g servings' | format(rc.recipe_servings)) if rc.recipe_servings %}
+            {%- set meta = [rc.recipe_yield or servings,
+                            ('Total ' ~ rc.total_time) if rc.total_time,
+                            ('Prep ' ~ rc.prep_time) if rc.prep_time,
+                            ('Cook ' ~ rc.perform_time) if rc.perform_time] | select | list -%}
+            {{ meta | join(' · ') }}
+            {%- if show_ingredients and rc.ingredients %}
+
+            ## Ingredients
+            {%- for i in rc.ingredients %}
+            {%- if i.title %}
+
+            **{{ i.title }}**
+            {%- endif %}
+            {%- set quantity = ('%g' | format(i.quantity)) if i.quantity else '' %}
+            {%- set note = i.note if i.note != 'None' else '' %}
+            - [ ] {{ i.display or ([quantity, i.unit.name if i.unit, i.food.name if i.food, note]
+                                   | select | join(' ')) }}
+            {%- endfor %}
+            {%- endif %}
+            {%- if show_steps and rc.instructions %}
+
+            ## Steps
+            {%- for step in rc.instructions %}
+            {%- if step.title %}
+
+            ### {{ step.title }}
+            {%- endif %}
+
+            **{{ loop.index }}.** {{ step.text | trim }}
+            {%- endfor %}
+            {%- endif %}
+      - action: lxd02.print
+        data:
+          icon: mdi:chef-hat
+          title: "{{ result.recipe.name }}"
+          text: "{{ receipt }}"
+          size: "{{ size | default('normal') }}"
+
+automation:
+  - id: mealie_refresh_recipe_list
+    alias: Refresh Mealie recipe list
+    description: Keeps the Mealie recipe dropdown up to date.
+    triggers:
+      - trigger: homeassistant
+        event: start
+      - trigger: time_pattern
+        minutes: 0
+    actions:
+      - action: script.mealie_refresh_recipes
